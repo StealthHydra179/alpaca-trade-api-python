@@ -24,14 +24,13 @@ def get_ratings(symbols, algo_time):
     assets = api.list_assets()
     assets = [asset for asset in assets if asset.tradable ]
     ratings = pd.DataFrame(columns=['symbol', 'rating', 'price'])
-    index = 0
     batch_size = 200 # The maximum number of stocks to request data for
     window_size = 5 # The number of days of data to consider
     formatted_time = None
     if algo_time is not None:
         # Convert the time to something compatable with the Alpaca API.
         formatted_time = algo_time.date().strftime(api_time_format)
-    while index < len(assets):
+    for index in range(0, len(assets), 200):
         symbol_batch = [
             asset.symbol for asset in assets[index:index+batch_size]
         ]
@@ -75,7 +74,6 @@ def get_ratings(symbols, algo_time):
                             'rating': price_change/bars[0].c * volume_factor,
                             'price': price
                         }, ignore_index=True)
-        index += 200
     ratings = ratings.sort_values('rating', ascending=False)
     ratings = ratings.reset_index(drop=True)
     return ratings[:stocks_to_hold]
@@ -83,12 +81,12 @@ def get_ratings(symbols, algo_time):
 
 def get_shares_to_buy(ratings_df, portfolio):
     total_rating = ratings_df['rating'].sum()
-    shares = {}
-    for _, row in ratings_df.iterrows():
-        shares[row['symbol']] = int(
+    return {
+        row['symbol']: int(
             row['rating'] / total_rating * portfolio / row['price']
         )
-    return shares
+        for _, row in ratings_df.iterrows()
+    }
 
 
 # Returns a string version of a timestamp compatible with the Alpaca API.
@@ -155,7 +153,6 @@ def get_value_of_assets(api, shares_bought, on_date):
     if len(shares_bought.keys()) == 0:
         return 0
 
-    total_value = 0
     formatted_date = api_format(on_date)
     barset = api.get_barset(
         symbols=shares_bought.keys(),
@@ -163,9 +160,9 @@ def get_value_of_assets(api, shares_bought, on_date):
         limit=1,
         end=formatted_date
     )
-    for symbol in shares_bought:
-        total_value += shares_bought[symbol] * barset[symbol][0].o
-    return total_value
+    return sum(
+        shares_bought[symbol] * barset[symbol][0].o for symbol in shares_bought
+    )
 
 
 def run_live(api):
@@ -179,19 +176,18 @@ def run_live(api):
         # The max stocks_to_hold is 200, so we shouldn't see more than 400
         # orders on a given day.
         orders = api.list_orders(
-            after=api_format(datetime.today() - timedelta(days=1)),
+            after=api_format(datetime.now() - timedelta(days=1)),
             limit=400,
-            status='all'
+            status='all',
         )
+
         for order in orders:
+            # This handles an edge case where the script is restarted
+            # right before the market closes.
+            sold_today = True
             if order.side == 'buy':
                 bought_today = True
-                # This handles an edge case where the script is restarted
-                # right before the market closes.
-                sold_today = True
                 break
-            else:
-                sold_today = True
     except:
         # We don't have any orders, so we've obviously not done anything today.
         pass
@@ -244,15 +240,14 @@ if __name__ == '__main__':
 
     if len(sys.argv) < 2:
         print('Error: please specify a command; either "run" or "backtest <cash balance> <number of days to test>".')
+    elif sys.argv[1] == 'backtest':
+        # Run a backtesting session using the provided parameters
+        start_value = float(sys.argv[2])
+        testing_days = int(sys.argv[3])
+        portfolio_value = backtest(api, testing_days, start_value)
+        portfolio_change = (portfolio_value - start_value) / start_value
+        print('Portfolio change: {:.4f}%'.format(portfolio_change*100))
+    elif sys.argv[1] == 'run':
+        run_live(api)
     else:
-        if sys.argv[1] == 'backtest':
-            # Run a backtesting session using the provided parameters
-            start_value = float(sys.argv[2])
-            testing_days = int(sys.argv[3])
-            portfolio_value = backtest(api, testing_days, start_value)
-            portfolio_change = (portfolio_value - start_value) / start_value
-            print('Portfolio change: {:.4f}%'.format(portfolio_change*100))
-        elif sys.argv[1] == 'run':
-            run_live(api)
-        else:
-            print('Error: Unrecognized command ' + sys.argv[1])
+        print('Error: Unrecognized command ' + sys.argv[1])

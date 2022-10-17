@@ -19,7 +19,7 @@ class _StreamConn(object):
         self._key_id = key_id
         self._secret_key = secret_key
         self._base_url = re.sub(r'^http', 'ws', base_url)
-        self._endpoint = self._base_url + '/stream'
+        self._endpoint = f'{self._base_url}/stream'
         self._handlers = {}
         self._handler_symbols = {}
         self._streams = set([])
@@ -190,14 +190,12 @@ class StreamConn(object):
         self._key_id, self._secret_key, _ = get_credentials(key_id, secret_key)
         self._base_url = base_url or get_base_url()
         self._data_url = data_url or get_data_url()
-        if data_stream is not None:
-            if data_stream in ('alpacadatav1', 'polygon'):
-                _data_stream = data_stream
-            else:
-                raise ValueError('invalid data_stream name {}'.format(
-                    data_stream))
-        else:
+        if data_stream is None:
             _data_stream = 'alpacadatav1'
+        elif data_stream in {'alpacadatav1', 'polygon'}:
+            _data_stream = data_stream
+        else:
+            raise ValueError(f'invalid data_stream name {data_stream}')
         self._data_stream = _data_stream
         self._debug = debug
 
@@ -206,14 +204,14 @@ class StreamConn(object):
                                       self._base_url)
 
         if self._data_stream == 'polygon':
-            # DATA_PROXY_WS is used for the alpaca-proxy-agent.
-            # this is how we set the polygon ws to go through the proxy agent
-            endpoint = os.environ.get("DATA_PROXY_WS", '')
-            if endpoint:
+            if endpoint := os.environ.get("DATA_PROXY_WS", ''):
                 os.environ['POLYGON_WS_URL'] = endpoint
             self.data_ws = polygon.StreamConn(
-                self._key_id + '-staging' if 'staging' in self._base_url else
-                self._key_id)
+                f'{self._key_id}-staging'
+                if 'staging' in self._base_url
+                else self._key_id
+            )
+
             self._data_prefixes = (('Q.', 'T.', 'A.', 'AM.'))
         else:
             self.data_ws = _StreamConn(self._key_id,
@@ -269,12 +267,9 @@ class StreamConn(object):
     async def unsubscribe(self, channels: List[str]):
         '''Handle unsubscribing from channels.'''
 
-        data_channels = [
-            c for c in channels
-            if c.startswith(self._data_prefixes)
-        ]
-
-        if data_channels:
+        if data_channels := [
+            c for c in channels if c.startswith(self._data_prefixes)
+        ]:
             await self.data_ws.unsubscribe(data_channels)
 
     async def consume(self):
@@ -325,8 +320,11 @@ class StreamConn(object):
                                           self._base_url)
             if self._data_stream == 'polygon':
                 self.data_ws = polygon.StreamConn(
-                    self._key_id + '-staging' if 'staging' in
-                    self._base_url else self._key_id)
+                    f'{self._key_id}-staging'
+                    if 'staging' in self._base_url
+                    else self._key_id
+                )
+
             else:
                 self.data_ws = _StreamConn(self._key_id,
                                            self._secret_key,

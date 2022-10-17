@@ -13,10 +13,7 @@ class Entity(object):
             self._raw['_from'] = self._raw['from']
 
     def __getattr__(self, key):
-        if key in self._raw:
-            val = self._raw[key]
-            return val
-        return getattr(super(), key)
+        return self._raw[key] if key in self._raw else getattr(super(), key)
 
     def __repr__(self):
         return '{name}({raw})'.format(
@@ -94,13 +91,7 @@ class Aggsv2(list):
 
     def _raw_results(self):
         results = self._raw.get('results')
-        if not results:
-            # this is not very pythonic but it's written like this because
-            # the raw response for empty aggs was None, and this:
-            # self._raw.get('results', []) returns None, not [] which breaks
-            # when we try to iterate it.
-            return []
-        return results
+        return results or []
 
     def rename_keys(self):
         colmap = {
@@ -184,10 +175,7 @@ class _TradesOrQuotes(object):
 
         unit_class = self.__class__._unit
         results = {}
-        if 'ticks' in raw:
-            results = raw['ticks']
-        else:
-            results = raw['results']
+        results = raw['ticks'] if 'ticks' in raw else raw['results']
         super().__init__([
             unit_class(rename_keys(result, raw['map']))
             for result in results
@@ -200,10 +188,7 @@ class _TradesOrQuotes(object):
             raw = self._raw
             columns = self.__class__._columns
             results = {}
-            if 'ticks' in raw:
-                results = raw['ticks']
-            else:
-                results = raw['results']
+            results = raw['ticks'] if 'ticks' in raw else raw['results']
             df = pd.DataFrame(
                 sorted(results, key=lambda d: d['t']),
                 columns=columns,

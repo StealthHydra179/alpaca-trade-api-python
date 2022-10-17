@@ -90,11 +90,11 @@ class REST(object):
                  api_version: str = None
                  ):
         base_url = base_url or self._base_url
-        version = api_version if api_version else self._api_version
-        url: URL = URL(base_url + '/' + version + path)
+        version = api_version or self._api_version
+        url: URL = URL(f'{base_url}/{version}{path}')
         headers = {}
         if self._oauth:
-            headers['Authorization'] = 'Bearer ' + self._oauth
+            headers['Authorization'] = f'Bearer {self._oauth}'
         else:
             headers['APCA-API-KEY-ID'] = self._key_id
             headers['APCA-API-SECRET-KEY'] = self._secret_key
@@ -112,17 +112,16 @@ class REST(object):
             opts['json'] = data
 
         retry = self._retry
-        if retry < 0:
-            retry = 0
+        retry = max(retry, 0)
         while retry >= 0:
             try:
                 return self._one_request(method, url, opts, retry)
             except RetryException:
                 retry_wait = self._retry_wait
                 logger.warning(
-                    'sleep {} seconds and retrying {} '
-                    '{} more time(s)...'.format(
-                        retry_wait, url, retry))
+                    f'sleep {retry_wait} seconds and retrying {url} {retry} more time(s)...'
+                )
+
                 time.sleep(retry_wait)
                 retry -= 1
                 continue
@@ -142,15 +141,12 @@ class REST(object):
             # retry if we hit Rate Limit
             if resp.status_code in retry_codes and retry > 0:
                 raise RetryException()
-            if 'code' in resp.text:
-                error = resp.json()
-                if 'code' in error:
-                    raise APIError(error, http_error)
-            else:
+            if 'code' not in resp.text:
                 raise
-        if resp.text != '':
-            return resp.json()
-        return None
+            error = resp.json()
+            if 'code' in error:
+                raise APIError(error, http_error)
+        return resp.json() if resp.text != '' else None
 
     def get(self, path, data=None):
         return self._request('GET', path, data)
@@ -227,7 +223,7 @@ class REST(object):
         :param params: refer to documentation
         """
         if params is None:
-            params = dict()
+            params = {}
         if limit is not None:
             params['limit'] = limit
         if after is not None:
@@ -324,7 +320,7 @@ class REST(object):
     def get_order(self, order_id: str) -> Order:
         """Get an order"""
         params = {}
-        resp = self.get('/orders/{}'.format(order_id), params)
+        resp = self.get(f'/orders/{order_id}', params)
         return Order(resp)
 
     def replace_order(
@@ -362,12 +358,12 @@ class REST(object):
             params['time_in_force'] = time_in_force
         if client_order_id is not None:
             params['client_order_id'] = client_order_id
-        resp = self.patch('/orders/{}'.format(order_id), params)
+        resp = self.patch(f'/orders/{order_id}', params)
         return Order(resp)
 
     def cancel_order(self, order_id: str) -> None:
         """Cancel an order"""
-        self.delete('/orders/{}'.format(order_id))
+        self.delete(f'/orders/{order_id}')
 
     def cancel_all_orders(self) -> None:
         """Cancel all open orders"""
@@ -380,12 +376,12 @@ class REST(object):
 
     def get_position(self, symbol: str) -> Position:
         """Get an open position"""
-        resp = self.get('/positions/{}'.format(symbol))
+        resp = self.get(f'/positions/{symbol}')
         return Position(resp)
 
     def close_position(self, symbol: str) -> Order:
         """Liquidates the position for the given symbol at market price"""
-        resp = self.delete('/positions/{}'.format(symbol))
+        resp = self.delete(f'/positions/{symbol}')
         return Order(resp)
 
     def close_all_positions(self) -> Orders:
@@ -404,7 +400,7 @@ class REST(object):
 
     def get_asset(self, symbol: str) -> Asset:
         """Get an asset"""
-        resp = self.get('/assets/{}'.format(symbol))
+        resp = self.get(f'/assets/{symbol}')
         return Asset(resp)
 
     def get_barset(self,
@@ -450,7 +446,7 @@ class REST(object):
             params['after'] = after
         if until is not None:
             params['until'] = until
-        resp = self.data_get('/bars/{}'.format(timeframe), params)
+        resp = self.data_get(f'/bars/{timeframe}', params)
         return BarSet(resp)
 
     def get_aggs(self,
@@ -468,21 +464,22 @@ class REST(object):
         :param to: yyyy-mm-dd
         :return:
         """
-        resp = self.data_get('/aggs/ticker/{}/range/{}/{}/{}/{}'.format(
-            symbol, multiplier, timespan, _from, to
-        ))
+        resp = self.data_get(
+            f'/aggs/ticker/{symbol}/range/{multiplier}/{timespan}/{_from}/{to}'
+        )
+
         return Aggs(resp)
 
     def get_last_trade(self, symbol: str) -> Trade:
         """
         Get the last trade for the given symbol
         """
-        resp = self.data_get('/last/stocks/{}'.format(symbol))
+        resp = self.data_get(f'/last/stocks/{symbol}')
         return Trade(resp['last'])
 
     def get_last_quote(self, symbol: str) -> Quote:
         """Get the last trade for the given symbol"""
-        resp = self.data_get('/last_quote/stocks/{}'.format(symbol))
+        resp = self.data_get(f'/last_quote/stocks/{symbol}')
         return Quote(resp['last'])
 
     def get_clock(self) -> Clock:
@@ -515,7 +512,7 @@ class REST(object):
         if isinstance(activity_types, list):
             params['activity_types'] = ','.join(activity_types)
         elif activity_types is not None:
-            url += '/{}'.format(activity_types)
+            url += f'/{activity_types}'
         if after is not None:
             params['after'] = after
         if until is not None:
@@ -552,7 +549,7 @@ class REST(object):
 
     def get_watchlist(self, watchlist_id: str) -> Watchlist:
         """Get a watchlist identified by the ID"""
-        resp = self.get('/watchlists/{}'.format((watchlist_id)))
+        resp = self.get(f'/watchlists/{watchlist_id}')
         return Watchlist(resp)
 
     def get_watchlist_by_name(self, watchlist_name: str) -> Watchlist:
@@ -577,9 +574,7 @@ class REST(object):
 
     def add_to_watchlist(self, watchlist_id: str, symbol: str) -> Watchlist:
         """Add an asset to the watchlist"""
-        resp = self.post(
-            '/watchlists/{}'.format(watchlist_id), data=dict(symbol=symbol)
-        )
+        resp = self.post(f'/watchlists/{watchlist_id}', data=dict(symbol=symbol))
         return Watchlist(resp)
 
     def update_watchlist(self,
@@ -592,16 +587,16 @@ class REST(object):
             params['name'] = name
         if symbols is not None:
             params['symbols'] = symbols
-        resp = self.put('/watchlists/{}'.format(watchlist_id), data=params)
+        resp = self.put(f'/watchlists/{watchlist_id}', data=params)
         return Watchlist(resp)
 
     def delete_watchlist(self, watchlist_id: str) -> None:
         """Delete a watchlist identified by the ID permanently"""
-        self.delete('/watchlists/{}'.format(watchlist_id))
+        self.delete(f'/watchlists/{watchlist_id}')
 
     def delete_from_watchlist(self, watchlist_id: str, symbol: str) -> None:
         """Remove an asset from the watchlist's asset list"""
-        self.delete('/watchlists/{}/{}'.format(watchlist_id, symbol))
+        self.delete(f'/watchlists/{watchlist_id}/{symbol}')
 
     def get_portfolio_history(self,
                               date_start: str = None,

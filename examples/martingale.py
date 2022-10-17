@@ -129,14 +129,14 @@ class MartingaleTrader(object):
             side = data.order['side']
             oid = data.order['id']
 
-            if event_type == 'fill' or event_type == 'partial_fill':
+            if event_type in ['fill', 'partial_fill']:
                 # Our position size has changed
                 self.position = int(data.position_qty)
                 print(f'New position size due to order fill: {self.position}')
                 if (event_type == 'fill' and self.current_order
                     and self.current_order.id == oid):
                     self.current_order = None
-            elif event_type == 'rejected' or event_type == 'canceled':
+            elif event_type in ['rejected', 'canceled']:
                 if self.current_order and self.current_order.id == oid:
                     # Our last order should be removed
                     self.current_order = None
@@ -169,16 +169,16 @@ class MartingaleTrader(object):
             else:
                 # Calculate the number of shares we want to be holding
                 total_buying_power = self.equity * \
-                                     self.margin_multiplier
+                                         self.margin_multiplier
                 target_value = (2 ** self.streak_count) * \
-                               (self.base_bet / 100) * total_buying_power
+                                   (self.base_bet / 100) * total_buying_power
                 if target_value > total_buying_power:
                     # Limit the amount we can buy to a bit (1 share)
                     # less than our total buying power
                     target_value = total_buying_power - self.last_price
                 target_qty = int(target_value / self.last_price)
                 if self.streak_increasing:
-                    target_qty = target_qty * -1
+                    target_qty *= -1
                 self.send_order(target_qty)
         # Update our account balance
         self.equity = float(self.api.get_account().equity)

@@ -38,10 +38,7 @@ class StreamConn(object):
 
         msg = await self._next()
         if msg.get('status') != 'connected':
-            raise ValueError(
-                ("Invalid response on Polygon websocket connection: {}"
-                    .format(msg))
-            )
+            raise ValueError(f"Invalid response on Polygon websocket connection: {msg}")
         await self._dispatch(msg)
         logging.info(f"connected to: {self._endpoint}")
         if await self.authenticate():
@@ -62,16 +59,17 @@ class StreamConn(object):
         stream = data.get('ev')
         msg = data.get('message')
         status = data.get('status')
-        if (stream == 'status'
-                and msg == 'authenticated'
-                and status == 'auth_success'):
-            # reset retries only after we successfully authenticated
-            self._retries = 0
-            await self._dispatch(data)
-            return True
-        else:
+        if (
+            stream != 'status'
+            or msg != 'authenticated'
+            or status != 'auth_success'
+        ):
             raise ValueError('Invalid Polygon credentials, '
                              f'Failed to authenticate: {data}')
+        # reset retries only after we successfully authenticated
+        self._retries = 0
+        await self._dispatch(data)
+        return True
 
     async def _next(self):
         '''Returns the next message available
@@ -105,8 +103,7 @@ class StreamConn(object):
 
     async def _consume_msg(self):
         async for data in self._stream:
-            stream = data.get('ev')
-            if stream:
+            if stream := data.get('ev'):
                 await self._dispatch(data)
             elif data.get('status') == 'disconnected':
                 # Polygon returns this on an empty 'ev' id..
@@ -199,7 +196,7 @@ class StreamConn(object):
         if subject == 'Q':
             return Quote({quote_mapping[k]: v for k,
                           v in data.items() if k in quote_mapping})
-        if subject == 'AM' or subject == 'A':
+        if subject in ['AM', 'A']:
             return Agg({agg_mapping[k]: v for k,
                         v in data.items() if k in agg_mapping})
         return Entity(data)

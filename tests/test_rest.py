@@ -61,8 +61,9 @@ def test_api(reqmock):
 
     # Get an asset
     asset_id = '904837e3-3b76-47ec-b432-046db621571b'
-    reqmock.get('https://api.alpaca.markets/v1/assets/{}'.format(asset_id),
-                text='''{
+    reqmock.get(
+        f'https://api.alpaca.markets/v1/assets/{asset_id}',
+        text='''{
     "id": "904837e3-3b76-47ec-b432-046db621571b",
     "name": "Apple inc.",
     "asset_class": "us_equity",
@@ -70,7 +71,9 @@ def test_api(reqmock):
     "symbol": "AAPL",
     "status": "active",
     "tradable": true
-  }''')
+  }''',
+    )
+
     asset = api.get_asset(asset_id)
     assert asset.name == 'Apple inc.'
 
@@ -202,9 +205,8 @@ def test_orders(reqmock):
     # Get an order by client order id
     client_order_id = 'client-order-id'
     reqmock.get(
-        'https://api.alpaca.markets/v1/orders:by_client_order_id?'
-        'client_order_id={}'.format(
-            client_order_id, ), text='''{
+        f'https://api.alpaca.markets/v1/orders:by_client_order_id?client_order_id={client_order_id}',
+        text='''{
   "id": "904837e3-3b76-47ec-b432-046db621571b",
   "client_order_id": "904837e3-3b76-47ec-b432-046db621571b",
   "account_id": "904837e3-3b76-47ec-b432-046db621571b",
@@ -230,14 +232,16 @@ def test_orders(reqmock):
   "failured_reason": "string",
   "cancel_requested_at": "2018-03-09T05:50:50Z",
   "submitted_at": "2018-03-09T05:50:50Z"
-}''')
+}''',
+    )
+
     order = api.get_order_by_client_order_id(client_order_id)
     assert order.submitted_at.minute == 50
 
     # Get an order
     order_id = '904837e3-3b76-47ec-b432-046db621571b'
     reqmock.get(
-        'https://api.alpaca.markets/v1/orders/{}'.format(order_id),
+        f'https://api.alpaca.markets/v1/orders/{order_id}',
         text='''{
   "id": "904837e3-3b76-47ec-b432-046db621571b",
   "client_order_id": "904837e3-3b76-47ec-b432-046db621571b",
@@ -264,18 +268,20 @@ def test_orders(reqmock):
   "failured_reason": "string",
   "cancel_requested_at": "2018-03-09T05:50:50Z",
   "submitted_at": "2018-03-09T05:50:50Z"
-}'''
+}''',
     )
+
     order = api.get_order(order_id)
     assert order.side == 'buy'
 
     # Cancel an order
     order_id = '904837e3-3b76-47ec-b432-046db621571b'
     reqmock.delete(
-        'https://api.alpaca.markets/v1/orders/{}'.format(order_id),
+        f'https://api.alpaca.markets/v1/orders/{order_id}',
         text='',
         status_code=204,
     )
+
     api.cancel_order(order_id)
 
 
@@ -304,7 +310,7 @@ def test_positions(reqmock):
     # Get an open position
     asset_id = 'test-asset'
     reqmock.get(
-        'https://api.alpaca.markets/v1/positions/{}'.format(asset_id),
+        f'https://api.alpaca.markets/v1/positions/{asset_id}',
         text='''{
   "account_id": "904837e3-3b76-47ec-b432-046db621571b",
   "asset_id": "904837e3-3b76-47ec-b432-046db621571b",
@@ -314,8 +320,9 @@ def test_positions(reqmock):
   "market_value": "600.0",
   "cost_basis": "500.0",
   "last_price": "120.00"
-}'''
+}''',
     )
+
     position = api.get_position(asset_id)
     assert position.cost_basis == '500.0'
 
@@ -524,7 +531,7 @@ def test_watchlists(reqmock):
     watchlist_id = "e65f2f2d-b596-4db6-bd68-1b7ceb77cccc"
     symbol = "AMD"
     reqmock.get(
-        'https://api.alpaca.markets/v1/watchlists/{}'.format(watchlist_id),
+        f'https://api.alpaca.markets/v1/watchlists/{watchlist_id}',
         text='''{
             "id": "e65f2f2d-b596-4db6-bd68-1b7ceb77cccc",
             "account_id": "1f893862-13b5-4603-b3ca-513980c00c6e",
@@ -581,7 +588,9 @@ def test_watchlists(reqmock):
             "easy_to_borrow": true
         }
     ]
-    }''')
+    }''',
+    )
+
     watchlist = api.get_watchlist(watchlist_id)
     assert watchlist.name == 'Primary Watchlist'
     assert len(watchlist.assets) == 4
@@ -598,7 +607,7 @@ def test_watchlists(reqmock):
 
     # add an asset to a watchlist
     reqmock.post(
-        'https://api.alpaca.markets/v1/watchlists/{}'.format(watchlist_id),
+        f'https://api.alpaca.markets/v1/watchlists/{watchlist_id}',
         text='''{
             "id": "e65f2f2d-b596-4db6-bd68-1b7ceb77cccc",
             "account_id": "1f893862-13b5-4603-b3ca-513980c00c6e",
@@ -619,7 +628,9 @@ def test_watchlists(reqmock):
             "easy_to_borrow": true
         }
     ]
-    }''')
+    }''',
+    )
+
     watchlist = api.add_to_watchlist(watchlist_id, symbol="AMD")
     assert watchlist.name == 'Primary Watchlist'
     assert len(watchlist.assets) == 1
@@ -627,9 +638,7 @@ def test_watchlists(reqmock):
 
     # remove an item from a watchlist
     reqmock.delete(
-        'https://api.alpaca.markets/v1/watchlists/{}/{}'.format(
-            watchlist_id, symbol
-        ),
+        f'https://api.alpaca.markets/v1/watchlists/{watchlist_id}/{symbol}',
         text='''{
     "id": "e65f2f2d-b596-4db6-bd68-1b7ceb77cccc",
     "account_id": "1f893862-13b5-4603-b3ca-513980c00c6e",
@@ -686,15 +695,18 @@ def test_watchlists(reqmock):
             "easy_to_borrow": true
         }
     ]
-    }''')
+    }''',
+    )
+
     api.delete_from_watchlist(watchlist_id, symbol)
 
     # delete a watchlist
     reqmock.delete(
-        'https://api.alpaca.markets/v1/watchlists/{}'.format(watchlist_id),
+        f'https://api.alpaca.markets/v1/watchlists/{watchlist_id}',
         text='',
         status_code=204,
     )
+
     api.delete_watchlist(watchlist_id)
 
 

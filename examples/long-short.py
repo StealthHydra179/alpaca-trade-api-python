@@ -14,10 +14,7 @@ class LongShort:
 
     stockUniverse = ['DOMO', 'TLRY', 'SQ', 'MRO', 'AAPL', 'GM', 'SNAP', 'SHOP', 'SPLK', 'BA', 'AMZN', 'SUI', 'SUN', 'TSLA', 'CGC', 'SPWR', 'NIO', 'CAT', 'MSFT', 'PANW', 'OKTA', 'TWTR', 'TM', 'RTN', 'ATVI', 'GS', 'BAC', 'MS', 'TWLO', 'QCOM', ]
     # Format the allStocks variable for use in the class.
-    self.allStocks = []
-    for stock in stockUniverse:
-      self.allStocks.append([stock, 0])
-
+    self.allStocks = [[stock, 0] for stock in stockUniverse]
     self.long = []
     self.short = []
     self.qShort = None
@@ -51,16 +48,13 @@ class LongShort:
       currTime = clock.timestamp.replace(tzinfo=datetime.timezone.utc).timestamp()
       self.timeToClose = closingTime - currTime
 
-      if(self.timeToClose < (60 * 15)):
+      if (self.timeToClose < (60 * 15)):
         # Close all positions when 15 minutes til market close.
         print("Market closing soon.  Closing positions.")
 
         positions = self.alpaca.list_positions()
         for position in positions:
-          if(position.side == 'long'):
-            orderSide = 'sell'
-          else:
-            orderSide = 'buy'
+          orderSide = 'sell' if (position.side == 'long') else 'buy'
           qty = abs(int(float(position.qty)))
           respSO = []
           tSubmitOrder = threading.Thread(target=self.submitOrder(qty, position.symbol, orderSide, respSO))
@@ -80,12 +74,12 @@ class LongShort:
   # Wait for market to open.
   def awaitMarketOpen(self):
     isOpen = self.alpaca.get_clock().is_open
-    while(not isOpen):
+    while (not isOpen):
       clock = self.alpaca.get_clock()
       openingTime = clock.next_open.replace(tzinfo=datetime.timezone.utc).timestamp()
       currTime = clock.timestamp.replace(tzinfo=datetime.timezone.utc).timestamp()
       timeToOpen = int((openingTime - currTime) / 60)
-      print(str(timeToOpen) + " minutes til market open.")
+      print(f"{timeToOpen} minutes til market open.")
       time.sleep(60)
       isOpen = self.alpaca.get_clock().is_open
 
@@ -99,80 +93,56 @@ class LongShort:
     for order in orders:
       self.alpaca.cancel_order(order.id)
 
-    print("We are taking a long position in: " + str(self.long))
-    print("We are taking a short position in: " + str(self.short))
+    print(f"We are taking a long position in: {str(self.long)}")
+    print(f"We are taking a short position in: {str(self.short)}")
     # Remove positions that are no longer in the short or long list, and make a list of positions that do not need to change.  Adjust position quantities if needed.
     executed = [[], []]
     positions = self.alpaca.list_positions()
     self.blacklist.clear()
     for position in positions:
-      if(self.long.count(position.symbol) == 0):
+      if (self.long.count(position.symbol) == 0):
         # Position is not in long list.
-        if(self.short.count(position.symbol) == 0):
-          # Position not in short list either.  Clear position.
-          if(position.side == "long"):
-            side = "sell"
-          else:
-            side = "buy"
+        if (self.short.count(position.symbol) == 0):
+          side = "sell" if (position.side == "long") else "buy"
           respSO = []
           tSO = threading.Thread(target=self.submitOrder, args=[abs(int(float(position.qty))), position.symbol, side, respSO])
           tSO.start()
           tSO.join()
-        else:
-          # Position in short list.
-          if(position.side == "long"):
-            # Position changed from long to short.  Clear long position to prepare for short position.
-            side = "sell"
-            respSO = []
-            tSO = threading.Thread(target=self.submitOrder, args=[int(float(position.qty)), position.symbol, side, respSO])
-            tSO.start()
-            tSO.join()
-          else:
-            if(abs(int(float(position.qty))) == self.qShort):
-              # Position is where we want it.  Pass for now.
-              pass
-            else:
-              # Need to adjust position amount
-              diff = abs(int(float(position.qty))) - self.qShort
-              if(diff > 0):
-                # Too many short positions.  Buy some back to rebalance.
-                side = "buy"
-              else:
-                # Too little short positions.  Sell some more.
-                side = "sell"
-              respSO = []
-              tSO = threading.Thread(target=self.submitOrder, args=[abs(diff), position.symbol, side, respSO])
-              tSO.start()
-              tSO.join()
-            executed[1].append(position.symbol)
-            self.blacklist.add(position.symbol)
-      else:
-        # Position in long list.
-        if(position.side == "short"):
-          # Position changed from short to long.  Clear short position to prepare for long position.
+        elif (position.side == "long"):
+          # Position changed from long to short.  Clear long position to prepare for short position.
+          side = "sell"
           respSO = []
-          tSO = threading.Thread(target=self.submitOrder, args=[abs(int(float(position.qty))), position.symbol, "buy", respSO])
+          tSO = threading.Thread(target=self.submitOrder, args=[int(float(position.qty)), position.symbol, side, respSO])
           tSO.start()
           tSO.join()
         else:
-          if(int(float(position.qty)) == self.qLong):
-            # Position is where we want it.  Pass for now.
-            pass
-          else:
-            # Need to adjust position amount.
-            diff = abs(int(float(position.qty))) - self.qLong
-            if(diff > 0):
-              # Too many long positions.  Sell some to rebalance.
-              side = "sell"
-            else:
-              # Too little long positions.  Buy some more.
-              side = "buy"
+          if abs(int(float(position.qty))) != self.qShort:
+            # Need to adjust position amount
+            diff = abs(int(float(position.qty))) - self.qShort
+            side = "buy" if (diff > 0) else "sell"
             respSO = []
             tSO = threading.Thread(target=self.submitOrder, args=[abs(diff), position.symbol, side, respSO])
             tSO.start()
             tSO.join()
-          executed[0].append(position.symbol)
+          executed[1].append(position.symbol)
           self.blacklist.add(position.symbol)
+      elif (position.side == "short"):
+        # Position changed from short to long.  Clear short position to prepare for long position.
+        respSO = []
+        tSO = threading.Thread(target=self.submitOrder, args=[abs(int(float(position.qty))), position.symbol, "buy", respSO])
+        tSO.start()
+        tSO.join()
+      else:
+        if int(float(position.qty)) != self.qLong:
+          # Need to adjust position amount.
+          diff = abs(int(float(position.qty))) - self.qLong
+          side = "sell" if (diff > 0) else "buy"
+          respSO = []
+          tSO = threading.Thread(target=self.submitOrder, args=[abs(diff), position.symbol, side, respSO])
+          tSO.start()
+          tSO.join()
+        executed[0].append(position.symbol)
+        self.blacklist.add(position.symbol)
 
     # Send orders to all remaining stocks in the long and short list.
     respSendBOLong = []
@@ -293,16 +263,16 @@ class LongShort:
 
   # Submit an order if quantity is above 0.
   def submitOrder(self, qty, stock, side, resp):
-    if(qty > 0):
+    if (qty > 0):
       try:
         self.alpaca.submit_order(stock, qty, side, "market", "day")
-        print("Market order of | " + str(qty) + " " + stock + " " + side + " | completed.")
+        print(f"Market order of | {str(qty)} {stock} {side} | completed.")
         resp.append(True)
       except:
-        print("Order of | " + str(qty) + " " + stock + " " + side + " | did not go through.")
+        print(f"Order of | {str(qty)} {stock} {side} | did not go through.")
         resp.append(False)
     else:
-      print("Quantity is 0, order of | " + str(qty) + " " + stock + " " + side + " | not completed.")
+      print(f"Quantity is 0, order of | {str(qty)} {stock} {side} | not completed.")
       resp.append(True)
 
   # Get percent changes of the stock prices over the past 10 minutes.

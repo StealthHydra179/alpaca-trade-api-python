@@ -123,14 +123,15 @@ class Bars(list):
             }
             df.columns = [alias[c] for c in df.columns]
             df.set_index('time', inplace=True)
-            if not df.empty:
-                df.index = pd.to_datetime(
-                    (df.index * 1e9).astype('int64'), utc=True,
+            df.index = (
+                pd.to_datetime(df.index, utc=True)
+                if df.empty
+                else pd.to_datetime(
+                    (df.index * 1e9).astype('int64'),
+                    utc=True,
                 ).tz_convert(NY)
-            else:
-                df.index = pd.to_datetime(
-                    df.index, utc=True
-                )
+            )
+
             self._df = df
         return self._df
 
@@ -151,10 +152,7 @@ class BarSet(dict):
                 df.columns = pd.MultiIndex.from_product(
                     [[symbol, ], df.columns])
                 dfs.append(df)
-            if len(dfs) == 0:
-                self._df = pd.DataFrame()
-            else:
-                self._df = pd.concat(dfs, axis=1)
+            self._df = pd.concat(dfs, axis=1) if dfs else pd.DataFrame()
         return self._df
 
 
@@ -302,14 +300,15 @@ class PortfolioHistory(Entity):
                 ),
             )
             df.set_index('timestamp', inplace=True)
-            if not df.empty:
-                df.index = pd.to_datetime(
-                    (df.index * 1e9).astype('int64'), utc=True,
+            df.index = (
+                pd.to_datetime(df.index, utc=True)
+                if df.empty
+                else pd.to_datetime(
+                    (df.index * 1e9).astype('int64'),
+                    utc=True,
                 ).tz_convert(NY)
-            else:
-                df.index = pd.to_datetime(
-                    df.index, utc=True
-                )
+            )
+
             self._df = df
         return self._df
 

@@ -39,7 +39,7 @@ def format_date_for_api_call(date):
         return date.isoformat()
     elif isinstance(date, str):  # string date
         return dateutil.parser.parse(date).date().isoformat()
-    elif isinstance(date, int) or isinstance(date, float):
+    elif isinstance(date, (int, float)):
         # timestamp number
         return int(date)
     else:
@@ -86,7 +86,7 @@ class REST(object):
         :param version: v1 or v2
         :return: response
         """
-        url: URL = URL('https://api.polygon.io/' + version + path)
+        url: URL = URL(f'https://api.polygon.io/{version}{path}')
         params = params or {}
         params['apiKey'] = self._api_key
         if self._staging:
@@ -124,7 +124,7 @@ class REST(object):
         :param limit: max 50000
         :return:
         """
-        path = '/ticks/stocks/trades/{}/{}'.format(symbol, date)
+        path = f'/ticks/stocks/trades/{symbol}/{date}'
         params = {}
         if timestamp is not None:
             params['timestamp'] = timestamp
@@ -156,7 +156,7 @@ class REST(object):
         :param limit: max 50000
         :return:
         """
-        path = '/ticks/stocks/nbbo/{}/{}'.format(symbol, date)
+        path = f'/ticks/stocks/nbbo/{symbol}/{date}'
         params = {}
         if timestamp is not None:
             params['timestamp'] = timestamp
@@ -221,23 +221,23 @@ class REST(object):
         return DailyOpenClose(raw)
 
     def last_trade(self, symbol: str) -> Trade:
-        path = '/last/stocks/{}'.format(symbol)
+        path = f'/last/stocks/{symbol}'
         raw = self.get(path)
         return Trade(raw['last'])
 
     def last_quote(self, symbol: str) -> Quote:
-        path = '/last_quote/stocks/{}'.format(symbol)
+        path = f'/last_quote/stocks/{symbol}'
         raw = self.get(path)
         # TODO status check
         return Quote(raw['last'])
 
     def previous_day_bar(self, symbol: str) -> Aggsv2:
-        path = '/aggs/ticker/{}/prev'.format(symbol)
+        path = f'/aggs/ticker/{symbol}/prev'
         raw = self.get(path, version='v2')
         return Aggsv2(raw)
 
     def condition_map(self, ticktype='trades') -> ConditionMap:
-        path = '/meta/conditions/{}'.format(ticktype)
+        path = f'/meta/conditions/{ticktype}'
         return ConditionMap(self.get(path))
 
     def company(self, symbol: str) -> Company:
@@ -247,18 +247,16 @@ class REST(object):
         multi = _is_list_like(symbol)
         symbols = symbol if multi else [symbol]
         if len(symbols) > 50:
-            raise ValueError('too many symbols: {}'.format(len(symbols)))
+            raise ValueError(f'too many symbols: {len(symbols)}')
         params = {
             'symbols': ','.join(symbols),
         }
-        path = '/meta/symbols/{}'.format(resource)
+        path = f'/meta/symbols/{resource}'
         res = self.get(path, params=params)
         if isinstance(res, list):
             res = {o['symbol']: o for o in res}
         retmap = {sym: entity(res[sym]) for sym in symbols if sym in res}
-        if not multi:
-            return retmap.get(symbol)
-        return retmap
+        return retmap if multi else retmap.get(symbol)
 
     def dividends(self, symbol: str) -> Dividends:
         return self._get_symbol(symbol, 'dividends', Dividends)
@@ -274,11 +272,11 @@ class REST(object):
         return self._get_symbol(symbol, 'financials', Financials)
 
     def news(self, symbol: str) -> NewsList:
-        path = '/meta/symbols/{}/news'.format(symbol)
+        path = f'/meta/symbols/{symbol}/news'
         return NewsList(self.get(path))
 
     def gainers_losers(self, direction: str = "gainers") -> Tickers:
-        path = '/snapshot/locale/us/markets/stocks/{}'.format(direction)
+        path = f'/snapshot/locale/us/markets/stocks/{direction}'
         return [
             Ticker(ticker) for ticker in
             self.get(path, version='v2')['tickers']
@@ -311,5 +309,5 @@ class REST(object):
                                             })['tickers']]
 
     def snapshot(self, symbol: str) -> Ticker:
-        path = '/snapshot/locale/us/markets/stocks/tickers/{}'.format(symbol)
+        path = f'/snapshot/locale/us/markets/stocks/tickers/{symbol}'
         return Ticker(self.get(path, version='v2'))

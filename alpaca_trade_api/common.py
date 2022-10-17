@@ -12,7 +12,7 @@ class URL(str):
         """
         if value:
             v0 = value[0]
-            if not (isinstance(v0, str) or isinstance(v0, URL)):
+            if not (isinstance(v0, (str, URL))):
                 raise TypeError(f'Unexpected type for URL: "{type(v0)}"')
             if not (v0.startswith('http://') or v0.startswith('https://') or
                     v0.startswith('ws://') or v0.startswith('wss://')):
@@ -48,7 +48,7 @@ class FLOAT(str):
     invalid strings all the way to the servers.
     """
     def __new__(cls, value):
-        if isinstance(value, float) or isinstance(value, int):
+        if isinstance(value, (float, int)):
             return value
         if isinstance(value, str):
             return float(value.strip())

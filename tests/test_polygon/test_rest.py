@@ -12,9 +12,7 @@ def reqmock():
 
 
 def endpoint(path, params='', api_version='v1'):
-    return 'https://api.polygon.io/{}{}?{}&apiKey=key-id'.format(
-        api_version, path, params
-    )
+    return f'https://api.polygon.io/{api_version}{path}?{params}&apiKey=key-id'
 
 
 def test_polygon(reqmock):

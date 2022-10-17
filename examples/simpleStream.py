@@ -78,7 +78,7 @@ async def on_tick(conn, channel, bar):
 
 
 async def on_data(conn, channel, data):
-    if opt.debug or not (channel in ('AM', 'Q', 'A', 'T')):
+    if opt.debug or channel not in ('AM', 'Q', 'A', 'T'):
         debug("debug: ", pprint.pformat(data))
 
 
